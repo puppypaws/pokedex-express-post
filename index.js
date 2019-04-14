@@ -1,16 +1,149 @@
-const express = require('express');
-const jsonfile = require('jsonfile');
-
-const FILE = 'pokedex.json';
-
 /**
  * ===================================
  * Configurations and set up
  * ===================================
  */
-
-// Init express app
+const express = require('express');
+//tell script to require express and name it express
 const app = express();
+//tell script to use the express(); function whenever app is called
+const jsonfile = require('jsonfile');
+//same idea
+
+const reactEngine = require('express-react-views').createEngine();
+//just like using canvas to enable React commands
+app.engine('jsx', reactEngine);
+//to tell script that jsx will be used alongside the engine
+
+app.set('views', __dirname + '/views');
+// this tells express where to look for the view files
+
+app.set('view engine', 'jsx');
+// this line sets react to be the default view engine
+
+const methodOverride = require('method-override')
+app.use(methodOverride('_method'));
+//required as a workaround since all requests will be 'put'
+//which means that the put request will be masked with override as a put but in fact is whatever is defined in this script, ie. a POST will be masked as a PUT but when applied is a POST
+
+app.use(express.json());
+//tells express to enable json usage
+
+app.use(express.urlencoded({
+  extended: true
+}));
+//allows urls to extend ie. /pokemon/1/2/3/4
+
+//you need something to submit request before it can run
+app.get("/pokemon",(req,res)=>{
+//use function to CREATE a new route (localhost:3000/pokemon)
+
+res.render('home')
+//render connects to home.jsx's render() & home refers to home.jsx
+});
+
+app.get("/pokemon/:id/",(req,res)=>{
+//create another route (/pokemon/:id/)
+
+console.log(req.params);
+//will return req.params's value (in this case, we want an id so it'll likely be a number ie. localhost:3000/pokemons/1)
+
+//but 1 isn't enough
+
+let pokeID = parseInt(req.params.id-1);
+//we will be reading an array which starts with 0, since pokemon's index starts with 1, we need the user input to be -1 so that array[0] aka pokemon#1 will register
+//parseInt is important so that string will turn into number
+//we need to define req.params before we can use it
+
+//but now all this does is bring us to page /pokemon/1
+//we need to show the user visual information
+//but first we need to define visual information
+//so we retrieve the data needed:
+
+//all the info we need will be inside this json
+jsonfile.readFile('./pokedex.json', (err, contentsOfFile) => {
+//first, since it's the json file that the pokemon are in, we read it with command jsonfile.readFile
+//to specify which file we add ('location of file',
+//to specify parameters we add (error, what to do with file))
+
+        // console.log(contentsOfFile.pokemon[32]);
+        // res.send(contentsOfFile.pokemon[pokeID]);
+
+let pokeInfo = contentsOfFile.pokemon[pokeID];
+//we can use pokeID not only to write the URL, but also to read the array since it matches the json file's index!
+//therefore inside contentsOfFile, we type a '.' which acts like a 'cd' in command line to read deeper into the array
+//.pokemon is the name of the array
+//.pokemon[pokeID] is the index value within the array
+//we define/name all this crap as pokeInfo
+
+    res.render('pokemon', {pokeInfo:pokeInfo})
+//now that we got our juicy info, time to RENDER it to browser via response.render
+//we can type 'pokemon' as pokemon.jsx is inside the views folder and is uniquely recognised
+//{pokeInfo:pokeInfo} kinda syntaxy since {}objects need {key:value} ie:
+//{
+//x : angelmon
+//}
+    });
+}
+)
+
+// let pokeType = contentsOfFile.pokemon[pokeID]
+
+//***Home***//
+var homeRequestHandler = function (request, response) {
+    let contentForDisplay = `Welcome to the online Pokdex!`;
+    response.send(contentForDisplay);
+}
+
+//***FURTHER by type***//
+var getPokemonByType = function (request, response) {
+    jsonfile.readFile(file, (err, data) => {
+        let temp = [];
+        //?Temporary blank to fill in input later
+        let found = false;
+        //Start found with false to prepare error message
+        let contentForDisplay = `Could not find information about ${ request.params.someType } - Is that a new type?`;
+        //Displays error message for invalid inputs
+        data.pokemon.forEach(function(item) {
+
+            for (let i = 0; i < item.type.length; i++) {
+                if (item.type[i].toLowerCase() === request.params.someType.toLowerCase()) {
+                    found = true;
+                    temp.push(item.name);
+                }
+            }
+            contentForDisplay = temp;
+        });
+
+        if (found === true) {
+            response.send(200, contentForDisplay);
+        } else if (found === false) {
+            response.send(404, contentForDisplay);
+        }
+    });
+}
+
+
+
+
+
+app.get("/pokemontype/:type/",(req,res)=>{
+
+console.log(req.params);
+
+let pokeType = (req.params);
+
+jsonfile.readFile('./pokedex.json', (err, contentsOfFile) => {
+
+let pokeName = contentsOfFile.pokemon[pokeType];
+
+res.render('pokemontype',{pokeType:pokeType})
+
+});
+
+}
+)
+
 
 /**
  * ===================================
@@ -18,42 +151,12 @@ const app = express();
  * ===================================
  */
 
-app.get('/:id', (request, response) => {
-
-  // get json from specified file
-  jsonfile.readFile(FILE, (err, obj) => {
-    // obj is the object from the pokedex json file
-    // extract input data from request
-    let inputId = parseInt( request.params.id );
-
-    var pokemon;
-
-    // find pokemon by id from the pokedex json file
-    for( let i=0; i<obj.pokemon.length; i++ ){
-
-      let currentPokemon = obj.pokemon[i];
-
-      if( currentPokemon.id === inputId ){
-        pokemon = currentPokemon;
-      }
-    }
-
-    if (pokemon === undefined) {
-
-      // send 404 back
-      response.status(404);
-      response.send("not found");
-    } else {
-
-      response.send(pokemon);
-    }
-  });
-});
-
-app.get('/', (request, response) => {
-  response.send("yay");
-});
-
+app.get('/', homeRequestHandler);
+app.get('/:name', getPokemonByNameRequestHandler);
+app.get('/type/:someType', getPokemonByTypeRequestHandler);
+app.get('/weaknesses/:someWeakness', getPokemonByWeaknessRequestHandler);
+app.get('/prevevolution/:name', getPokemonPreEvolutionRequestHandler);
+app.get('/nextevolution/:name', getPokemonNextEvolutionRequestHandler);
 /**
  * ===================================
  * Listen to requests on port 3000
